@@ -35,46 +35,46 @@ integer, parameter :: ishow=0		! =1:	print stepwise result
 ! 1.1.2 parameters
 
 ! utility fn
-real :: betam(4)=(/ 0.978,0.95,0.995,1.011 /)
-real :: gammam(4)=(/ 1.25,2.0,5.0,8.0 /)
+real :: betam(5)=(/ 0.958,0.968,0.978,0.997,1.035 /)	! default=0.978
+real :: gammam(5)=(/ 1.0,1.5,2.0,3.0,5.0 /)				! default=2.0
 
 ! production fn
-real :: alpham(4)=(/ 0.5,0.63,0.69,0.729 /)	! labor's income share
-real,parameter :: tfp=1.005
-real,parameter :: psi=0.232		! capital's income share 0.277 or 0.232
+real :: alpham(4)=(/ 0.5,0.63,0.69,0.729 /)	! labor's income share, default=0.69
+real,parameter :: tfp=1.0087	! default=1.005
+real,parameter :: psi=0.277		! capital's income share 0.277 or 0.232, default=0.277
 
 ! policy
-real :: thetam(10)=(/ 0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)
-real :: phim(10)=(/ 0.0,0.1,0.2,0.30,0.4,0.5,0.6,0.7,0.8,0.9 /)
+real :: thetam(10)=(/ 0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)	! default=0.3
+real :: phim(10)=(/ 0.0,0.1,0.2,0.30,0.4,0.5,0.6,0.7,0.8,0.9 /)		! default=0.3
 
 ! data
-real :: deltam(4)=(/ 0.064,0.069,0.08,0.125 /)
-real :: growthm(4)=(/ 0.01,0.0165,0.02,0.05 /)
-real :: rhom(4)=(/ 0.008,0.012,0.015,0.021 /)
+real :: deltam(4)=(/ 0.064,0.069,0.08,0.125 /)	! default=0.069
+real :: growthm(4)=(/ 0.01,0.0165,0.02,0.05 /)	! default=0.0165
+real :: rhom(4)=(/ 0.008,0.012,0.015,0.021 /)	! default=0.012
 
 
 ! age structure
-integer,parameter :: maxage=65
-integer,parameter :: retage=45
+integer,parameter :: maxage=65		! default=65
+integer,parameter :: retage=45		! default=45
 
 ! state space
-real,parameter :: kmax=32.0
-real,parameter :: kmin=0.0
-integer,parameter :: kgrid=107
+real,parameter :: kmax=32.0			! default=32.0
+real,parameter :: kmin=0.0			! default=0.0
+integer,parameter :: kgrid=103		! default=1025
 
 ! loop
 
-integer,parameter :: maxiter=51
-real,parameter :: tol=0.001
+integer,parameter :: maxiter=20		! default=16
+real,parameter :: tol=0.0001		! default=0.001
 
 ! initial guess
-real,parameter :: kinitmax=5.0
+real,parameter :: kinitmax=5.0		! default kinit=1.83
 real,parameter :: kinitmin=0.1
 integer,parameter :: kinitgrid=50
 
 ! real,parameter :: binit=0.042
 
-real,parameter :: binitmax=0.5
+real,parameter :: binitmax=0.5		! default binit=0.042
 real,parameter :: binitmin=0.01
 integer,parameter :: binitgrid=50
 
@@ -83,7 +83,7 @@ integer,parameter :: binitgrid=50
 
 
 
-real :: gradm(9)=(/ 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)
+real :: gradm(9)=(/ 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)		! default gradk=0.8, default gradb=0.4
 
 ! real :: tau=theta/(2.0+theta)	!tau=0, so pen=0 too
 ! real :: L=real(retage-1)/real(maxage)
@@ -127,6 +127,7 @@ integer i,j,iter,t,m,iterkmaxind,itermaxgrid,iterlowinterest,iterp
 ! aggregation
 real(8) kcross(maxage),ktp1(maxage),sumk,temp01,klong(maxage),sumbeq,output,price
 integer temp,ktp(maxage)
+real(8) clong(maxage),ccross(maxage),wcross(maxage),wlong(maxage),laborinc,cons,acons,invest,exdem,exput
 
 ! sequential method
 real(8) vtemp,vmax
@@ -143,7 +144,7 @@ real(8) sig,qn,un,uu(kgrid,maxage),p,vsod(kgrid,maxage)
 
 ! else
 integer dummy
-real(8) cons
+
 
 
 
@@ -235,21 +236,22 @@ do rm=2,2 ! default =2
 
     
 ! parameter
-do gam=2,2 ! default =2
-	gamma=gammam(gam)
+do gam=21,50 ! default =3
+	gamma=kinitspace(gam)
 	
-do dm=1,1 ! default =2
+do dm=2,2 ! default =2
 	delta=deltam(dm)	
 	
-do bm=1,1 ! default =1
-	beta=betam(bm)
+! do bm=5,5 ! default =3
+!	beta=betam(bm)
+    beta=0.9392+0.0192*gamma
 	
-do am=4,4 ! default =3
+do am=3,3 ! default =3
 	alpha=alpham(am)
 
 
 ! tax
-do tm=4,4 ! default =4
+do tm=5,5 ! default =4
 	theta=thetam(tm)
 	
 do pm=4,4 ! default =4
@@ -262,12 +264,14 @@ do binitm=4,4 ! default =4
 
 do gbm=4,4 ! default =4
 	gradb=gradm(gbm)
+! 	gradb=0.0
 	
 do kinitm=18,18 ! default =18
 	kinit=kinitspace(kinitm)
 
 do gkm=8,8 ! default =8
 	gradk=gradm(gkm)
+! 	gradk=0.0
 
 
 
@@ -277,7 +281,10 @@ do gkm=8,8 ! default =8
 iterp=iterp+1
 utax=(0.06/0.94)*phi
 ag=(1.0+g)*(1.0+rho)-1.0
-	
+
+! write (10,*),'iterp =',iterp
+write (10,*),' '
+
 !&&& part 2
 ! initialize for loop
 
@@ -297,6 +304,9 @@ ag=(1.0+g)*(1.0+rho)-1.0
 !&&& part 3 value fn loop
 
 do while((kdiff>tol).and.(iter<=maxiter))
+	
+	
+	write (10,*) K
 	beqm=(/( beq*(1.0+g)**(t-1),t=1,maxage )/)
 	iter=iter+1
 ! 	w=(1.0-alpha)*(K**alpha)*(L**(-alpha))
@@ -528,6 +538,7 @@ do while((kdiff>tol).and.(iter<=maxiter))
 119		dummy=1
 	end do ! t loop
 	
+	exput=0.94*vw(1,1,1)+0.06*vw(2,1,1)
 	
 ! 	print *, 'max asset obtained in this loop', maxval( maxval( dw(1,:,:),dim=1 ) )
 	
@@ -590,12 +601,19 @@ do while((kdiff>tol).and.(iter<=maxiter))
 
 	! compute longitudinal profiles for a given cohort
 	klong=0.0
+	clong=0.0
+	wlong=0.0
 	
 	do t=1,retage-1
 		do i=1,kgrid
 			do m=1,2
 				j=dw(m,i,t)
 				klong(t)=klong(t)+kspace(j)*pw(m,i,t)
+				if (m==1) laborinc=(1.0-pentax-utax)*w*efflong(t)
+				if (m==2) laborinc=phi*w*efflong(t)
+				wlong(t)=wlong(t)+laborinc*pw(m,i,t)
+				cons=fktw(m,i,t)-kspace(j)
+				clong(t)=clong(t)+cons*pw(m,i,t)
 			end do
 		end do
 	end do
@@ -604,11 +622,15 @@ do while((kdiff>tol).and.(iter<=maxiter))
 		do i=1,kgrid
 			j=dr(i,t)
 			klong(t)=klong(t)+kspace(j)*pr(i,t)
+			wlong(t)=pen
+			cons=fktr(i,t)-kspace(j)
+			clong(t)=clong(t)+cons*pr(i,t)
 		end do
 	end do
 	
 	kcross=(/( klong(t)*(1.0+g)**(1-t), t=1,maxage )/)
-	
+	wcross=(/( wlong(t)*(1.0+g)**(1-t), t=1,maxage )/)
+	ccross=(/( clong(t)*(1.0+g)**(1-t), t=1,maxage )/)
 	
 	! aggregation
 ! 	ktp(1)=1
@@ -656,6 +678,7 @@ do while((kdiff>tol).and.(iter<=maxiter))
 	K=gradk*K+(1.0-gradk)*tK
 	beq=gradb*beq+(1.0-gradb)*tbeq
 	
+
 !    if (ialgo==4) call cspline
 end do ! K loop
 
@@ -670,6 +693,12 @@ end do ! K loop
 
 !&&& part 4 screen print between each parameter set
 
+acons=0.0
+do t=1,maxage
+	acons=acons+ccross(t)*mu(t)
+end do
+invest=(ag+delta)*K
+exdem=acons+invest-output
 
 
 !  print *, 'gradk= ', gradk, 'kinit= ', kinit
@@ -695,24 +724,39 @@ end do ! K loop
 ! print *, ''
 ! 
 ! print *, '                             '
-!print *, 'gradk =',gradk
-print *, 'iterp =',iterp
-print *, 'gamma =',gamma
-print *, 'delta =',delta
-print *, 'beta =',beta
-print *, 'alpha =',alpha
+!print *, 'gradk =',gradk! 
+! print *, 'iterp =',iterp
+! print *, 'gamma =',gamma
+! print *, 'delta =',delta
+! print *, 'beta =',beta
+! print *, 'alpha =',alpha
 ! print *, 'theta =',theta
 ! print *, 'phi =',phi
 ! print *, '                             '
 !print *, "Initial K =",kinit
-print *, 'Final K =',K
+! print *, 'Final K =',K
 !print *, 'Initial bequest =',binit
-print *, 'Final bequest',beq
+! print *, 'Final bequest',beq
 print *, 'Iteration',iter
+! print *, 'Excess Demand =',exdem
+! print *, 'Capital-Output ratio =',K/output
+! print *, 'Land-Output ratio =',price/output
+print *, 'Wealth-Output ratio =',(K+price)/output
+! print *, 'Expected Utility =',exput
+! print *, 'Per Capita Consumption =',acons
+! print *, "Investment =",invest
 print *, '_____________________________'
-! print *, '                             '
-! print *, '                             '
+print *, '                             '
+print *, '                             '
 ! write (10,*) Kinit,K
+! print *, 'theta =',theta
+! print *, 'wage =',w
+! print *, 'per capita consumption =',acons
+! print *, 'interest =',r
+! print *, 'capital =',K
+! print *, 'land price =',price
+! print *, 'output =',output
+! print *, 'lifetime utility =',exput
 
 !write (10,*), '                             '
 ! write (10,*), 'gradk =',gradk
@@ -724,7 +768,8 @@ print *, '_____________________________'
 ! write (10,*), 'Iteration',iter
 ! write (10,*), 'binit,beq,K,iter'
 !write (10,777) kinit,gradk,K,beq,iter,iterkmaxind,itermaxgrid,iterlowinterest
-write (10,888) g,rho,gamma,delta,beta,alpha,theta,phi,K,beq,iter,iterkmaxind,itermaxgrid,iterlowinterest
+
+! write (10,888) g,rho,gamma,delta,beta,alpha,theta,phi,K,beq,iter,iterkmaxind,itermaxgrid,iterlowinterest
 
 !write (10,*), '_____________________________'
 !write (10,*), '                             '
@@ -750,7 +795,7 @@ end do ! theta loop
 
 end do ! alpha loop
 
-end do ! beta loop
+! end do ! beta loop
 
 end do ! delta loop
 
@@ -785,7 +830,7 @@ if (t<retage) ct1=fktw(m,i,t)-ktp11
 if (ct1>0) then
 	util=ct1**(1.d0-gamma)/(1.d0-gamma)
 else	! this occurs when kmaxind=1 & all ct<=0
-	util=-10000000.0
+	util=-1000000000000000.0
 end if
 
 ! if (i==64 .and. i==1) print *, 'util =', util
