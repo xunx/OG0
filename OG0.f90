@@ -6,6 +6,11 @@ program main
 
 implicit none
 
+integer, parameter :: ialgo=4		! =1:	sequential search
+									! =2:	binary search(concavity & monotonicity)
+									! =3:	binary + gss & linear interpolation
+									! =4:	binary + gss & cubic spline
+									
 real,parameter :: beta=0.99
 real,parameter :: alpha=0.3
 real,parameter :: delta=0.1
@@ -15,7 +20,7 @@ real,parameter :: theta=0.0
 integer,parameter :: maxage=3
 integer,parameter :: retage=3
 
-real,parameter :: kmax=10.0
+real,parameter :: kmax=5.0
 real,parameter :: kmin=0.0
 integer,parameter :: kgrid=151
 
@@ -36,7 +41,8 @@ real vx
 real kspace(kgrid),kinitspace(kinitgrid),v(kgrid,maxage),v3(3),kcross(maxage),ktp(maxage),d1(kgrid,maxage),fktr(kgrid),fktw(kgrid),fkt(kgrid)
 integer kmaxindr(kgrid),kmaxindw(kgrid),d(kgrid,maxage)
 
-
+! cspline
+real(8) sig,qn,un,uu(kgrid,maxage),p,vsod(kgrid,maxage)
 
 integer iter,initm,temp
 
@@ -53,9 +59,10 @@ kinitspace=(/ ( kinitmin+real(i-1)*kinitstep, i=1,kinitgrid ) /)
 ! print *, kinitspace
 ! pause
 
-! open(unit=7,file='ckv')
+open(unit=7,file='C:\Users\NREM\Desktop\Dropbox\cversion\ckv')
 
 88 format (4(I5,2X))
+
 
 do initm=29,29
 	kinit=kinitspace(initm)
@@ -66,6 +73,8 @@ do gm=5,5
 	iter=0
 	kdiff=10.0
 	K=Kinit
+	
+	if (ialgo==4) call cspline
 
 do while((kdiff>tol).and.(iter<=maxiter))
 	sum=0.0
@@ -164,8 +173,8 @@ do while((kdiff>tol).and.(iter<=maxiter))
 			if (js==1) then	! left boundary
 				if (fkt(i)<=kspace(1)) then	! there are cases where all ct<0
 					d1(i,t)=kspace(1)
-! 					v(i,t)=maxval(v3)
-					v(i,t)=vmax
+ 					v(i,t)=maxval(v3)
+!					v(i,t)=vmax
 					print *,'fkt(i)<=kspace(1)'
 				else
 					d1(i,t)=gss(1,2)	! m, i cannot be used in gss
@@ -211,7 +220,7 @@ do while((kdiff>tol).and.(iter<=maxiter))
  		print *, 'kdiff is:', kdiff
 	
 	K=gradk*K+(1.0-gradk)*tK
-    
+    if (ialgo==4) call cspline
 end do
 
  print *, 'gradk= ', gradk, 'kinit= ', kinit
@@ -284,6 +293,8 @@ real :: tol_1=0.00001
 ! real kspace1(kgrid)
 ! kspace1=(/ ( kmin+real(i-1)*kstep, i=1,kgrid ) /)
 
+888	format (F20.15,F20.15)
+
 ppp=(sqrt(5.0)-1.0)/2.0	! p=.618
 
 
@@ -304,7 +315,11 @@ vjs=v(js,t+1)	! vjs=va if js=1
 
 
 if (b>fkt(i)) then	! reset fkt(i) as new right bound
-	vb=((b-fkt(i))*vjs+(fkt(i)-c)*vib)/kstep
+	if (ialgo==3) then
+		vb=((b-fkt(i))*vjs+(fkt(i)-c)*vib)/kstep
+	else
+		vb=splint(fkt(i))
+	end if
 	b=fkt(i)
 	print *,'b>fkt(i)'
 end if
@@ -313,13 +328,33 @@ end if
 	b1=(1.0-ppp)*a+ppp*b
 	
 if ((js>1).and.(js<kgrid)) then
-	if (a1<c) va1=((a1-ia1)*vjs+(c-a1)*via)/kstep
-	if (a1>=c) va1=((a1-c)*vib+(ib1-a1)*vjs)/kstep
-	if (b1<c) vb1=((b1-ia1)*vjs+(c-b1)*via)/kstep
-	if (b1>=c) vb1=((b1-c)*vib+(ib1-b1)*vjs)/kstep
+	if (ialgo==3) then
+		if (a1<c) va1=((a1-ia1)*vjs+(c-a1)*via)/kstep
+		if (a1>=c) va1=((a1-c)*vib+(ib1-a1)*vjs)/kstep
+		if (b1<c) vb1=((b1-ia1)*vjs+(c-b1)*via)/kstep
+		if (b1>=c) vb1=((b1-c)*vib+(ib1-b1)*vjs)/kstep
+	else
+		va1=splint(a1)
+		vb1=splint(b1)
+	end if
 else
-	va1=ppp*va+(1.0-ppp)*vb
-	vb1=(1.0-ppp)*va+ppp*vb
+	if (ialgo==3) then	
+		va1=ppp*va+(1.0-ppp)*vb
+		vb1=(1.0-ppp)*va+ppp*vb
+	else
+		va1=splint(a1)
+		vb1=splint(b1)
+	end if
+end if
+
+if (iter==10 .and. t==2) then
+	if (i==2) then
+		write(7,888) ia1,via
+		write(7,888) ib1,vib
+		write(7,888) c,vjs
+		write(7,888) a1,va1
+		write(7,888) b1,vb1
+	end if
 end if
 
 fa1=util(i,a1)+beta*va1	!calculate util & lip value fn
@@ -337,11 +372,18 @@ do while (abs(b-a)>tol_1)
 			vb1=va1
 			fb1=fa1
 			a1=ppp*a+(1.0-ppp)*b
-			va1=ppp*va+(1.0-ppp)*vb
+			if (ialgo==3) va1=ppp*va+(1.0-ppp)*vb
+			if (ialgo==4) va1=splint(a1)
+			
 			fa1=util(i,a1)+beta*va1	
 ! 			print *,'fa1>fb1'
 ! 			print *,'new a1=',a1,'b1=',b1
 ! 			pause
+			if (iter==10 .and. t==2) then
+				if (i==2) then
+					write(7,888) a1,va1
+				end if
+			end if
 		else	! move towards right bound b, construct new point b1
 			a=a1
 			va=va1
@@ -349,33 +391,57 @@ do while (abs(b-a)>tol_1)
 			va1=vb1
 			fa1=fb1
 			b1=ppp*b+(1.0-ppp)*a
-			vb1=ppp*vb+(1.0-ppp)*va
+			if (ialgo==3) vb1=ppp*vb+(1.0-ppp)*va
+			if (ialgo==4) vb1=splint(b1)
 			fb1=util(i,b1)+beta*vb1
 ! 			print *,'fa1<=fb1'
 ! 			print *,'a1=',a1,'new b1=',b1
 ! 			pause
+			if (iter==10 .and. t==2) then
+				if (i==2) then
+					write(7,888) b1,vb1
+				end if
+			end if
 		end if
     else	! js<kgrid & js>1
 		if (fa1>fb1) then
 			b=b1
 			b1=a1
 			a1=ppp*a+(1.0-ppp)*b
-			if (a1<c) va1=((a1-ia1)*vjs+(c-a1)*via)/kstep
-			if (a1>=c) va1=((a1-c)*vib+(ib1-a1)*vjs)/kstep
+			if (ialgo==3) then
+				if (a1<c) va1=((a1-ia1)*vjs+(c-a1)*via)/kstep
+				if (a1>=c) va1=((a1-c)*vib+(ib1-a1)*vjs)/kstep
+			else
+				va1=splint(a1)
+			end if
 			fa1=util(i,a1)+beta*va1
 ! 			print *,'fa1>fb1'
 ! 			print *,'new a1=',a1,'b1=',b1
 ! 			pause
+			if (iter==10 .and. t==2) then
+				if (i==2) then
+					write(7,888) a1,va1
+				end if
+			end if
 		else
 			a=a1
 			a1=b1
 			b1=ppp*b+(1.0-ppp)*a
-			if (b1<c) vb1=((b1-ia1)*vjs+(c-b1)*via)/kstep
-			if (b1>=c) vb1=((b1-c)*vib+(ib1-b1)*vjs)/kstep
+			if (ialgo==3) then
+				if (b1<c) vb1=((b1-ia1)*vjs+(c-b1)*via)/kstep
+				if (b1>=c) vb1=((b1-c)*vib+(ib1-b1)*vjs)/kstep
+			else
+				vb1=splint(b1)
+			end if
 			fb1=util(i,b1)+beta*vb1
 ! 			print *,'fa1<=fb1'
 ! 			print *,'a1=',a1,'new b1=',b1
 ! 			pause
+			if (iter==10 .and. t==2) then
+				if (i==2) then
+					write(7,888) b1,vb1
+				end if
+			end if
 		end if
 	end if
 end do
@@ -387,5 +453,63 @@ vx=(fa1+fb1)/2.0
 
 
 end function
+
+
+
+! 5.3 subroutine cspline
+subroutine cspline
+implicit none
+integer i12
+
+
+vsod=0.0
+
+
+vsod(1,:)=0.0	! each age has a unique valeu fn, so each valeu fn line needs to be approximated with seperate 2nd order derivative vector
+uu(1,:)=0.0
+qn=0.0
+un=0.0
+
+do t=1,maxage
+	do i12=2,kgrid-1
+		sig=(kspace(i12)-kspace(i12-1))/(kspace(i12+1)-kspace(i12-1))	! sig=hi/(hi+hi+1) on lecture note
+		p=sig*vsod(i12-1,t)+2.0
+		vsod(i12,t)=(sig-1.0)/p
+		uu(i12,t)=(6.0*((v(i12+1,t)-v(i12,t))/(kspace(i12+1)-kspace(i12))-(v(i12,t)-v(i12-1,t))/(kspace(i12)-kspace(i12-1)))/(kspace(i12+1)-kspace(i12-1))-sig*uu(i12-1,t))/p
+	end do
+
+	vsod(kgrid,t)=(un-qn*uu(kgrid-1,t))/(qn*vsod(kgrid-1,t)+1.0)
+
+	do i12=kgrid-1,1,-1
+		vsod(i12,t)=vsod(i12,t)*vsod(i12+1,t)+uu(i12,t)
+	end do
+end do
+
+end subroutine
+
+
+
+! 5.4 function splint
+real function splint(a1_1)
+
+implicit none
+real a1_1,pa,pb
+integer ia_1
+ia_1=floor((a1_1-kspace(1))/kstep)+1
+pa=(kspace(ia_1+1)-a1_1)/kstep
+pb=1.0-pa
+splint=pa*v(ia_1,t+1)+pb*v(ia_1+1,t+1)+((pa**3-pa)*vsod(ia_1,t+1)+(pb**3-pb)*vsod(ia_1+1,t+1))*(kstep**2)/6.0
+
+end function
+
+
+
+
+
+
+
+
+
+
 
 end program
