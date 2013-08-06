@@ -15,9 +15,9 @@ real,parameter :: theta=0.0
 integer,parameter :: maxage=3
 integer,parameter :: retage=3
 
-real,parameter :: kmax=5.0
+real,parameter :: kmax=10.0
 real,parameter :: kmin=0.0
-integer,parameter :: kgrid=21
+integer,parameter :: kgrid=151
 
 real :: gradkm(9)=(/ 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)
 real,parameter :: tol=0.00001
@@ -97,7 +97,7 @@ do while((kdiff>tol).and.(iter<=maxiter))
 	! value fn and decision rule for maxage
 	
 	d(:,maxage)=1
-	d1(:,maxage)=0.0	! d1 records the value of optimal policy off grid
+	d1(:,maxage)=0.0
 	v(:,maxage)=(/( ((1.0+r)*kspace(i)+pen)**(1.0-gamma)/(1.0-gamma),i=1,kgrid )/)
 	
 	! age 64 - age 1
@@ -108,52 +108,50 @@ do while((kdiff>tol).and.(iter<=maxiter))
 		if (t<retage)	fkt(:)=fktw(:)
 		
 		
-		! this is brutal force grid search
-		do i=1,kgrid
-			if (t>retage-1) jmax=kmaxindr(i)
-			if (t<retage)	jmax=kmaxindw(i)
-			vmax=-1000.0
-			js=1				
-			do j=1,jmax
-				vtemp=util(i,kspace(j))+beta*v(j,t+1)
-				if (vtemp>=vmax) then
-					vmax=vtemp
-					js=j
-                end if
-                
-			end do
-			
-			print *,'prelinary optimal kt+1 is on grid js=',js
-			print *,'for kt on grid i=',i, 'vmax=',vmax
-! 			pause
-
-	
-	
-		! this is binary search
-! 		js=1
+		
 ! 		do i=1,kgrid
-! 			jmin=js
 ! 			if (t>retage-1) jmax=kmaxindr(i)
 ! 			if (t<retage)	jmax=kmaxindw(i)
-! 			do while ((jmax-jmin)>2)
-! 				jl=floor(real(jmin+jmax)/2.0)
-! 				ju=jl+1
-! 				v3(1)=util(i,kspace(jl))+beta*v(jl,t+1)
-! 				v3(2)=util(i,kspace(ju))+beta*v(ju,t+1)
-! 				if (v3(2)>v3(1)) then
-! 					jmin=jl
-! 				else
-! 					jmax=ju
-! 				end if
+! 			vmax=-1000.0
+! 			js=1				
+! 			do j=1,jmax
+! 				vtemp=util(i,kspace(j))+beta*v(j,t+1)
+! 				if (vtemp>=vmax) then
+! 					vmax=vtemp
+! 					js=j
+!                 end if
+!                 
 ! 			end do
-! 			v3(1)=util(i,kspace(jmin))+beta*v(jmin,t+1)
-! 			v3(3)=util(i,kspace(jmax))+beta*v(jmax,t+1)
-! 			if (jmax>jmin) then
-! 				v3(2)=util(i,kspace(jmin+1))+beta*v(jmin+1,t+1)
-! 			else
-! 				v3(2)=v3(1)
-! 			end if
-! 			js=jmin+(maxloc(v3,dim=1))-1
+			
+! 			print *,'prelinary optimal kt+1 is on grid js=',js
+!			print *,'for kt on grid i=',i, 'vmax=',vmax
+! 			pause
+
+
+		js=1
+		do i=1,kgrid
+			jmin=js
+			if (t>retage-1) jmax=kmaxindr(i)
+			if (t<retage)	jmax=kmaxindw(i)
+			do while ((jmax-jmin)>2)
+				jl=floor(real(jmin+jmax)/2.0)
+				ju=jl+1
+				v3(1)=util(i,kspace(jl))+beta*v(jl,t+1)
+				v3(2)=util(i,kspace(ju))+beta*v(ju,t+1)
+				if (v3(2)>v3(1)) then
+					jmin=jl
+				else
+					jmax=ju
+				end if
+			end do
+			v3(1)=util(i,kspace(jmin))+beta*v(jmin,t+1)
+			v3(3)=util(i,kspace(jmax))+beta*v(jmax,t+1)
+			if (jmax>jmin) then
+				v3(2)=util(i,kspace(jmin+1))+beta*v(jmin+1,t+1)
+			else
+				v3(2)=v3(1)
+			end if
+			js=jmin+(maxloc(v3,dim=1))-1
 ! 			
 ! 			print *,'preliminary optimal kt+1 is on grid js=',js
 ! 			print *,'for kt on grid i=',i
@@ -162,8 +160,7 @@ do while((kdiff>tol).and.(iter<=maxiter))
 			
 ! 			v(i,t)=maxval(v3)
 ! 			d(i,t)=js
-			
-			! this is golden section search(gss)
+							
 			if (js==1) then	! left boundary
 				if (fkt(i)<=kspace(1)) then	! there are cases where all ct<0
 					d1(i,t)=kspace(1)
@@ -208,10 +205,10 @@ do while((kdiff>tol).and.(iter<=maxiter))
 	tK=sum/real(maxage)
 	kdiff=abs(K-tK)/K
 	
-		print *, 'iteration :', iter
-		print *, 'K is:', K
-		print *, 'tK is:', tK
-		print *, 'kdiff is:', kdiff
+ 		print *, 'iteration :', iter
+ 		print *, 'K is:', K
+ 		print *, 'tK is:', tK
+ 		print *, 'kdiff is:', kdiff
 	
 	K=gradk*K+(1.0-gradk)*tK
     
@@ -225,8 +222,8 @@ end do
 ! 	print *, ''
 ! 	print *, ''
 ! 
-! 	if (any(d==kgrid)) print *, 'Kt+1 has reached upper bound of state space'
-! 	if (any(d(:,1:maxage-1)==1)) print *, 'Kt+1 has reached lower bound of state space'
+ 	if (any(d==kgrid)) print *, 'Kt+1 has reached upper bound of state space'
+ 	if (any(d(:,1:maxage-1)==1)) print *, 'Kt+1 has reached lower bound of state space'
 ! 	print *, 'd(kgrid,maxage) is:'
 ! 	do i=1,kgrid
 ! 		write (7,888) d(i,:)
@@ -282,105 +279,111 @@ real function gss(ia,ib)	! [ia,ib] is range of grid position to be searched
 
 implicit none
 integer ia,ib
-real a,b,a1,b1,fa1,fb1,ppp,va,vb,va1,vb1
+real ia1,ib1,a,b,c,a1,b1,fa1,fb1,ppp,via,vib,va,vb,vjs,va1,vb1
 real :: tol_1=0.00001
 ! real kspace1(kgrid)
 ! kspace1=(/ ( kmin+real(i-1)*kstep, i=1,kgrid ) /)
 
 ppp=(sqrt(5.0)-1.0)/2.0	! p=.618
-a=kspace(ia)
-va=v(ia,t+1)
-b=kspace(ib)
-vb=v(ib,t+1)
-if ( ishow==1 ) then
-	print *,'ia=',ia,'ib=',ib
-! 	print *,'kspace(ia)=',kspace(ia),'kspace(ib)=',kspace(ib)
-! 	print *,'a=',a,'b=',b,'fkt(i)=',fkt(i)
-! 	print *,'va=',va,'vb=',vb,'v(ia+1,t+1)=',v(ia+1,t+1)
-	! pause
-end if
 
+
+ia1=kspace(ia)
+a=ia1
+via=v(ia,t+1)
+va=via
+ib1=kspace(ib)
+b=ib1
+vib=v(ib,t+1)
+vb=vib
+c=kspace(js)
+vjs=v(js,t+1)	! vjs=va if js=1
+
+! print *,'ia=',ia,'ib=',ib
 
 ! 888	format (F20.15,F20.15)
 
 
-if (b>fkt(i)) then
-	vb=((b-fkt(i))*va+(fkt(i)-a)*vb)/(b-a)
+if (b>fkt(i)) then	! reset fkt(i) as new right bound
+	vb=((b-fkt(i))*vjs+(fkt(i)-c)*vib)/kstep
 	b=fkt(i)
-	if ( ishow==1 ) then
-		print *,'b>fkt(i)'
-		print *,'vb=',vb,'b=',b
-		! pause
-	end if
+	print *,'b>fkt(i)'
 end if
 
-a1=ppp*a+(1.0-ppp)*b	!by gss
-b1=(1.0-ppp)*a+ppp*b
-
-va1=ppp*va+(1.0-ppp)*vb
-vb1=(1.0-ppp)*va+ppp*vb
+	a1=ppp*a+(1.0-ppp)*b	!by gss
+	b1=(1.0-ppp)*a+ppp*b
+	
+if ((js>1).and.(js<kgrid)) then
+	if (a1<c) va1=((a1-ia1)*vjs+(c-a1)*via)/kstep
+	if (a1>=c) va1=((a1-c)*vib+(ib1-a1)*vjs)/kstep
+	if (b1<c) vb1=((b1-ia1)*vjs+(c-b1)*via)/kstep
+	if (b1>=c) vb1=((b1-c)*vib+(ib1-b1)*vjs)/kstep
+else
+	va1=ppp*va+(1.0-ppp)*vb
+	vb1=(1.0-ppp)*va+ppp*vb
+end if
 
 fa1=util(i,a1)+beta*va1	!calculate util & lip value fn
 fb1=util(i,b1)+beta*vb1
-if ( ishow==1 ) then
-	print *,'a1=',a1,'b1=',b1
-! 	print *,'va1=',va1,'vb1=',vb1
-! 	print *,'util(i,a1)=',util(i,a1),'util(i,b1)=',util(i,b1)
-! 	print *,'fa1=',fa1,'fb1=',fb1
-	! pause
-end if
+
+! print *,'a1=',a1,'b1=',b1
+
 
 do while (abs(b-a)>tol_1)
-	if (fa1>fb1) then
-		b=b1
-		vb=vb1
-		b1=a1
-		vb1=va1
-		fb1=fa1
-		a1=ppp*a+(1.0-ppp)*b
-		va1=ppp*va+(1.0-ppp)*vb
-		fa1=util(i,a1)+beta*va1	
-		if ( ishow==1 ) then
-			print *,'fa1>fb1'
-! 			print *,'a=',a,'b=',b
-! 			print *,'va=',va,'vb=',vb
-			print *,'new a1=',a1,'b1=',b1
-! 			print *,'new va1=',va1,'vb1=',vb1
-! 			print *,'util(i,a1)=',util(i,a1)
-! 			print *,'new fa1=',fa1,'fb1=',fb1
+	if ((js==1).or.(js==kgrid)) then
+		if (fa1>fb1) then	! move towards left bound a, construct new point a1
+			b=b1
+			vb=vb1
+			b1=a1
+			vb1=va1
+			fb1=fa1
+			a1=ppp*a+(1.0-ppp)*b
+			va1=ppp*va+(1.0-ppp)*vb
+			fa1=util(i,a1)+beta*va1	
+! 			print *,'fa1>fb1'
+! 			print *,'new a1=',a1,'b1=',b1
+! 			pause
+		else	! move towards right bound b, construct new point b1
+			a=a1
+			va=va1
+			a1=b1
+			va1=vb1
+			fa1=fb1
+			b1=ppp*b+(1.0-ppp)*a
+			vb1=ppp*vb+(1.0-ppp)*va
+			fb1=util(i,b1)+beta*vb1
+! 			print *,'fa1<=fb1'
+! 			print *,'a1=',a1,'new b1=',b1
 ! 			pause
 		end if
-	else
-		a=a1
-		va=va1
-		a1=b1
-		va1=vb1
-		fa1=fb1
-		b1=ppp*b+(1.0-ppp)*a
-		vb1=ppp*vb+(1.0-ppp)*va
-		fb1=util(i,b1)+beta*vb1
-		if ( ishow==1 ) then
-			print *,'fa1<=fb1'
-! 			print *,'a=',a,'b=',b
-! 			print *,'va=',va,'vb=',vb
-			print *,'a1=',a1,'new b1=',b1
-! 			print *,'va1=',va1,'new vb1=',vb1
-! 			print *,'util(i,b1)=',util(i,b1)
-! 			print *,'fa1=',fa1,'new fb1=',fb1
-! 			pause			
+    else	! js<kgrid & js>1
+		if (fa1>fb1) then
+			b=b1
+			b1=a1
+			a1=ppp*a+(1.0-ppp)*b
+			if (a1<c) va1=((a1-ia1)*vjs+(c-a1)*via)/kstep
+			if (a1>=c) va1=((a1-c)*vib+(ib1-a1)*vjs)/kstep
+			fa1=util(i,a1)+beta*va1
+! 			print *,'fa1>fb1'
+! 			print *,'new a1=',a1,'b1=',b1
+! 			pause
+		else
+			a=a1
+			a1=b1
+			b1=ppp*b+(1.0-ppp)*a
+			if (b1<c) vb1=((b1-ia1)*vjs+(c-b1)*via)/kstep
+			if (b1>=c) vb1=((b1-c)*vib+(ib1-b1)*vjs)/kstep
+			fb1=util(i,b1)+beta*vb1
+! 			print *,'fa1<=fb1'
+! 			print *,'a1=',a1,'new b1=',b1
+! 			pause
 		end if
-
-    end if
-    
+	end if
 end do
 gss=(a1+b1)/2.0
 vx=(fa1+fb1)/2.0
-if ( ishow==1 ) then
-	print *,'gss=',gss,'vx=',vx
-	print *,'************************************************************'
-	! pause
-end if
 
+! print *,'gss=',gss,'vx=',vx
+! print *,'************************************************************'
 
 
 end function
