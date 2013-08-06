@@ -35,24 +35,22 @@ integer, parameter :: ishow=0		! =1:	print stepwise result
 ! 1.1.2 parameters
 
 ! utility fn
-real,parameter :: beta=0.978
-real,parameter :: gamma=2.0
+real :: betam(4)=(/ 0.978,0.95,0.995,1.011 /)
+real :: gammam(4)=(/ 1.25,2.0,5.0,8.0 /)
 
 ! production fn
-real,parameter :: alpha=0.69	! labor's income share
+real :: alpham(4)=(/ 0.5,0.63,0.69,0.729 /)	! labor's income share
 real,parameter :: tfp=1.005
-real,parameter :: psi=0.277		! capital's income share
+real,parameter :: psi=0.232		! capital's income share 0.277 or 0.232
 
 ! policy
-real,parameter :: theta=0.3
-real,parameter :: phi=0.30
-real,parameter :: utax=(0.06/0.94)*phi
+real :: thetam(10)=(/ 0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)
+real :: phim(10)=(/ 0.0,0.1,0.2,0.30,0.4,0.5,0.6,0.7,0.8,0.9 /)
 
 ! data
-real,parameter :: delta=0.069
-real,parameter :: g=0.0165
-real,parameter :: rho=0.012
-real,parameter :: ag=(1.0+g)*(1.0+rho)-1.0
+real :: deltam(4)=(/ 0.064,0.069,0.08,0.125 /)
+real :: growthm(4)=(/ 0.01,0.0165,0.02,0.05 /)
+real :: rhom(4)=(/ 0.008,0.012,0.015,0.021 /)
 
 
 ! age structure
@@ -65,7 +63,8 @@ real,parameter :: kmin=0.0
 integer,parameter :: kgrid=107
 
 ! loop
-integer,parameter :: maxiter=1001
+
+integer,parameter :: maxiter=51
 real,parameter :: tol=0.001
 
 ! initial guess
@@ -98,6 +97,10 @@ real(8) K,w,r,tK,d1(kgrid,maxage),L,beq,beqm(maxage),tbeq
 real(8) pr(kgrid,retage:maxage),pw(2,kgrid,retage-1)
 integer dr(kgrid,retage:maxage),dw(2,kgrid,retage-1)
 
+! parameter experiment 1
+real(8) beta,gamma,alpha,theta,phi,delta,g,rho,utax,ag
+integer bm,gam,am,tm,pm,dm,gm,rm
+
 ! feature
 real(8) pen,sumeff,temp1,pentax
 real(8) effcross(retage-1),efflong(retage-1),ptrans(2,2)
@@ -106,7 +109,7 @@ real(8) effcross(retage-1),efflong(retage-1),ptrans(2,2)
 real(8) consurv(maxage),abssurv(maxage),sumpop,mu(maxage)
 
 
-! parameter experiment
+! parameter experiment 2
 integer gkm,gbm,kinitm,binitm
 real(8) kinitstep,kinit,kinitspace(kinitgrid),gradk
 real(8) binitstep,binit,binitspace(binitgrid)
@@ -119,7 +122,7 @@ integer kmaxindr(kgrid,retage:maxage),kmaxindw(2,kgrid,retage-1),maxgrid
 
 ! loop
 real(8) kdiff,gradb,beqdiff
-integer i,j,iter,t,m,iterkmaxind,itermaxgrid,iterlowinterest
+integer i,j,iter,t,m,iterkmaxind,itermaxgrid,iterlowinterest,iterp
 
 ! aggregation
 real(8) kcross(maxage),ktp1(maxage),sumk,temp01,klong(maxage),sumbeq,output,price
@@ -159,6 +162,7 @@ if (isys==2) open(unit=8,file='psurv.txt')
 if (isys==2) open(unit=10,file='result.txt')
 
 777 format( 4(F5.2,1X) 2(F7.4,1X) 4(I6,1X) )
+888 format( 8(F6.3,1X) 2(F9.6,1X) 4(I6,1X) )
 ! kspace
 
 
@@ -166,28 +170,16 @@ if (isys==2) open(unit=10,file='result.txt')
 
 
 read(7,*) ( effcross(t),t=1,retage-1 )
-efflong=(/( ((1.0+g)**(t-1))*effcross(t), t=1,retage-1 )/)
+
 
 ptrans=reshape((/0.94,0.94,0.06,0.06/),(/2,2/))
 read(8,*) ( consurv(t), t=1,maxage )
+
 abssurv(1) = 1.0
 do t=2,maxage
 	abssurv(t) = abssurv(t-1)*consurv(t)
 end do
 
-sumpop=0.0
-do t=1,maxage
-	sumpop=sumpop+abssurv(t)/((1.0+rho)**(t-1))
-end do
-mu(1)=1.0/sumpop
-do t=2,maxage
-	mu(t)=consurv(t)*mu(t-1)/(1.0+rho)
-end do
-
-L=0.0
-do t=1,retage-1
-	L=L+0.94*effcross(t)*mu(t)
-end do
 
 
 
@@ -210,29 +202,82 @@ kinitstep=(kinitmax-kinitmin)/real(kinitgrid-1)
 kinitspace=(/ ( kinitmin+real(i-1)*kinitstep, i=1,kinitgrid ) /)
 
 
-
 binitstep=(binitmax-binitmin)/real(binitgrid-1)
 binitspace=(/ ( binitmin+real(i-1)*binitstep, i=1,binitgrid ) /)
 	
 kstep=(kmax-kmin)/real(kgrid-1)
 kspace=(/ ( kmin+real(i-1)*kstep, i=1,kgrid ) /)
 
-do binitm=4,4
+iterp=0
+
+! data
+do gm=2,2 ! default =2
+	g=growthm(gm)
+
+    efflong=(/( ((1.0+g)**(t-1))*effcross(t), t=1,retage-1 )/)
+    
+do rm=2,2 ! default =2
+	rho=rhom(rm)
+
+	sumpop=0.0
+	do t=1,maxage
+		sumpop=sumpop+abssurv(t)/((1.0+rho)**(t-1))
+	end do
+	mu(1)=1.0/sumpop
+	do t=2,maxage
+		mu(t)=consurv(t)*mu(t-1)/(1.0+rho)
+	end do
+
+	L=0.0
+	do t=1,retage-1
+		L=L+0.94*effcross(t)*mu(t)
+	end do
+
+    
+! parameter
+do gam=2,2 ! default =2
+	gamma=gammam(gam)
+	
+do dm=1,1 ! default =2
+	delta=deltam(dm)	
+	
+do bm=1,1 ! default =1
+	beta=betam(bm)
+	
+do am=4,4 ! default =3
+	alpha=alpham(am)
+
+
+! tax
+do tm=4,4 ! default =4
+	theta=thetam(tm)
+	
+do pm=4,4 ! default =4
+	phi=phim(pm)
+
+
+! algorithm
+do binitm=4,4 ! default =4
 	binit=binitspace(binitm)
 
-do gbm=4,4
+do gbm=4,4 ! default =4
 	gradb=gradm(gbm)
 	
-do kinitm=18,18
+do kinitm=18,18 ! default =18
 	kinit=kinitspace(kinitm)
 
-do gkm=8,8
+do gkm=8,8 ! default =8
 	gradk=gradm(gkm)
 
 
 
+    
+    
 
-
+iterp=iterp+1
+utax=(0.06/0.94)*phi
+ag=(1.0+g)*(1.0+rho)-1.0
+	
 !&&& part 2
 ! initialize for loop
 
@@ -650,12 +695,19 @@ end do ! K loop
 ! print *, ''
 ! 
 ! print *, '                             '
-print *, 'gradk =',gradk
+!print *, 'gradk =',gradk
+print *, 'iterp =',iterp
+print *, 'gamma =',gamma
+print *, 'delta =',delta
+print *, 'beta =',beta
+print *, 'alpha =',alpha
+! print *, 'theta =',theta
+! print *, 'phi =',phi
 ! print *, '                             '
 !print *, "Initial K =",kinit
-! print *, 'Final K =',K
-print *, 'Initial bequest =',binit
-!print *, 'Final bequest',beq
+print *, 'Final K =',K
+!print *, 'Initial bequest =',binit
+print *, 'Final bequest',beq
 print *, 'Iteration',iter
 print *, '_____________________________'
 ! print *, '                             '
@@ -672,11 +724,12 @@ print *, '_____________________________'
 ! write (10,*), 'Iteration',iter
 ! write (10,*), 'binit,beq,K,iter'
 !write (10,777) kinit,gradk,K,beq,iter,iterkmaxind,itermaxgrid,iterlowinterest
-write (10,777) binit,gradb,kinit,gradk,beq,K,iter,iterkmaxind,itermaxgrid,iterlowinterest
+write (10,888) g,rho,gamma,delta,beta,alpha,theta,phi,K,beq,iter,iterkmaxind,itermaxgrid,iterlowinterest
 
 !write (10,*), '_____________________________'
 !write (10,*), '                             '
 !write (10,*), '                             '
+
 end do ! gradk loop
 	
 end do ! kinit loop
@@ -684,6 +737,29 @@ end do ! kinit loop
 end do ! gradb loop
 
 end do ! binit loop
+
+
+
+
+
+end do ! phi loop
+
+end do ! theta loop
+
+
+
+end do ! alpha loop
+
+end do ! beta loop
+
+end do ! delta loop
+
+end do ! gama loop
+
+
+end do ! rho loop
+
+end do ! g loop
 
 ! parameter loop end &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
